@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "leveldb-zlib": "^1.2.0",
+    "parsenbt-js": "^1.0.1"
+  }
+}
