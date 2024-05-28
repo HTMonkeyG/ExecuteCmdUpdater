@@ -209,16 +209,18 @@ class Coordinate3D {
   }
 }
 
+// 更新execute的函数
 function updateExecute(str, callback) {
   var look, ret = 'execute';
   Lexer.init(str);
 
   typeof callback != 'function' && (callback = () => { });
 
-  function move() { look = Lexer.scan(); console.log(look) }
+  function move() { look = Lexer.scan() }
   function match(t) { if (look.tag != t) errorUnexp(); }
   function errorUnexp() { throw new Error(`Position ${Lexer.getPtr()}: Unexpected ${look}`) }
 
+  // 一个选择器参数
   function selectorParam() {
     var ret = '';
     move();
@@ -272,6 +274,7 @@ function updateExecute(str, callback) {
     return ret + "]"
   }
 
+  // 三维坐标
   function coordinate() {
     var ret = [];
     if (look.tag == Tag.NUM || look.tag == Tag.RELATIVE) ret.push(look);
@@ -286,6 +289,7 @@ function updateExecute(str, callback) {
     return new Coordinate3D(ret[0], ret[1], ret[2]);
   }
 
+  // detect子命令
   function detectSub() {
     var ret = '', x = coordinate();
     ret += x;
@@ -299,6 +303,7 @@ function updateExecute(str, callback) {
     return ret
   }
 
+  // 一层execute
   function execute() {
     var s = selector()
       , x = coordinate()
@@ -326,3 +331,5 @@ function updateExecute(str, callback) {
   ret += execute();
   return ret
 }
+
+module.exports = updateExecute;

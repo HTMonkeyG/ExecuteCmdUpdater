@@ -53,8 +53,31 @@ async function main() {
         fmt.printF(text.foundEncFile);
         process.exit(1);
       }
-      (/^MANIFEST-[0-9]{6}$/.test(a) || /^CURRENT$/.test(a) || /^[0-9]{6}.ldb$/.test(a)) && preEnc.push(a);
     }
+
+    var db = new LevelDB(dbPath, { createIfMissing: false });
+
+    await db.open();
+
+    for await (let chunk of db) {
+      var meta = getChunkMeta(chunk[0]);
+      /*if(meta && meta.pos[0] > 620 && meta.type == 0x31) {
+        console.log(NBT.Reader(toArrayBuffer(chunk[1]), true))
+        fs.writeFileSync("a.nbt", chunk[1])
+        break;
+      }*/
+      /*if (meta && meta.type == 0x31) {
+        var blockEntity = NBT.Reader(toArrayBuffer(chunk[1]), true);
+        if (blockEntity["comp>"]["str>id"] == "CommandBlock") {
+          var cmd = blockEntity["comp>"]["str>Command"];
+          console.log(cmd);
+        }
+      }*/
+      if(meta && meta.pos[0] == 625 && meta.pos[1] == 625)
+        console.log(meta, chunk[1])
+    }
+
+    await db.close();
   }
 }
 
@@ -84,4 +107,29 @@ function integrityTest(tP, log) {
   }
 
   return pass;
+}
+
+function getChunkMeta(buf) {
+  if (buf.length < 9) return false;
+  var pos = [buf.readInt32LE(0), buf.readInt32LE(4)];
+  if (Math.abs(pos[0]) > 1875000 || Math.abs(pos[1]) > 1875000) return false;
+  var type, index, dimension = 0;
+  if (buf.length == 9)
+    type = buf.readUInt8(8);
+  if (buf.length == 10)
+    type = buf.readUInt8(8), index = buf.readUInt8(9);
+  if (buf.length == 13)
+    dimension = buf.readUInt32LE(8), type = buf.readUInt8(12);
+  if (buf.length == 14)
+    dimension = buf.readUInt32LE(8), type = buf.readUInt8(12), index = buf.readUInt8(13);
+  return { pos: pos, type: type, index: index, dimension: dimension }
+}
+
+function toArrayBuffer(buf) {
+  var ab = new ArrayBuffer(buf.length);
+  var view = new Uint8Array(ab);
+  for (var i = 0; i < buf.length; ++i) {
+    view[i] = buf[i];
+  }
+  return ab;
 }
