@@ -61,11 +61,10 @@ async function main() {
 
     for await (let chunk of db) {
       var meta = getChunkMeta(chunk[0]);
-      /*if(meta && meta.pos[0] > 620 && meta.type == 0x31) {
-        console.log(NBT.Reader(toArrayBuffer(chunk[1]), true))
-        fs.writeFileSync("a.nbt", chunk[1])
+      if(meta && meta.pos[0] > 620 && meta.type == 0x31) {
+        console.log(NBT.ReadSerial(toArrayBuffer(chunk[1]), true))
         break;
-      }*/
+      }
       /*if (meta && meta.type == 0x31) {
         var blockEntity = NBT.Reader(toArrayBuffer(chunk[1]), true);
         if (blockEntity["comp>"]["str>id"] == "CommandBlock") {
