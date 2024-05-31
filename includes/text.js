@@ -1,5 +1,6 @@
 var log = {
   confirmOp: '§3若存档中存在新版execute可能产生不正常结果.\n本操作将直接在存档源文件进行, 建议创建好备份后再操作, 是否确认[y/N]',
+  ctrlCExit: '§3本次执行结束, 按Ctrl+C退出或继续操作.',
   enterPath: '§3请输入存档目录',
   exit: '\n§f已退出.§r',
   foundDetect: '§e[WARNING] 在坐标(%0, %1, %2)的命令块发现detect子命令: %3, 未转换.',

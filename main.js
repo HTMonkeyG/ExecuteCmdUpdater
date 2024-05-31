@@ -82,6 +82,7 @@ async function main() {
     // 遍历
     for await (let kvpair of db) {
       var meta = getChunkMeta(kvpair[0]);
+      // 是区块而且是方块实体区段
       if (meta && meta.type == 0x31) {
         var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
         nbt.forEach(function (ele, ind) {
@@ -108,8 +109,7 @@ async function main() {
             if (succ) {
               ctr[1]++;
               nbt[ind]["comp>"]["str>Command"] = updatedCmd;
-            }
-            else ctr[2]++;
+            } else ctr[2]++;
           }
         });
         if (!noCbInChunk) {
@@ -124,7 +124,7 @@ async function main() {
     }
     printf(text.totalCb, ctr);
     await db.close();
-    UI.close();
+    printf(text.ctrlCExit);
   }
 }
 

@@ -18,9 +18,13 @@ class Token {
 }
 
 class Numeric extends Token {
-  constructor(v) { super(Tag.NUM); this.value = v }
-  toString() { return this.value.toString() }
-  isInteger() { return Math.isInteger(this.value) }
+  constructor(v, f) { super(Tag.NUM); this.value = v; this.float = !!f }
+  toString() {
+    if (this.float && this.isInteger())
+      return this.value.toFixed(1);
+    else return this.value.toString();
+  }
+  isInteger() { return Number.isInteger(this.value) }
 }
 
 class String extends Token {
@@ -118,8 +122,8 @@ var Lexer = (function () {
       v = 10 * v + Number(peek);
       readch()
     } while (/\d/.test(peek))
-    if (peek != ".") return new Numeric(v * (n ? -1 : 1));
-    if (readch(".")) return fallback(), new Numeric(v * (n ? -1 : 1));
+    if (peek != ".") return new Numeric(v * (n ? -1 : 1), false);
+    if (readch(".")) return fallback(), new Numeric(v * (n ? -1 : 1), false);
     var x = v, d = 10;
     for (; canRead();) {
       if (!/\d/.test(peek)) break;
@@ -127,7 +131,7 @@ var Lexer = (function () {
       d *= 10;
       readch();
     }
-    return new Numeric(x * (n ? -1 : 1))
+    return new Numeric(x * (n ? -1 : 1), true)
   }
 
   function readDecimal(n) {
@@ -155,10 +159,10 @@ var Lexer = (function () {
     while (canRead()) {
       readch();
       if (escaped) {
-        if (peek == "n")
+        /*if (peek == "n")
           result += "\n";
-        else
-          result += peek;
+        else*/
+        result += peek;
         escaped = false;
       } else if (peek == "\\" && allowescape)
         escaped = true;
@@ -177,7 +181,7 @@ var Lexer = (function () {
     result += peek;
     while (canRead()) {
       readch();
-      if (!/[a-zA-Z0-9\u4e00-\u9fa5\.§_\-]/.test(peek)) break;
+      if (!/[a-zA-Z0-9\u4e00-\u9fa5\.§_\-\:]/.test(peek)) break;
       result += peek;
     }
     return result
@@ -329,7 +333,7 @@ function updateExecute(str, callback) {
     }, 0))
       callback(2, Lexer.getPtr(), s);
 
-    ret += ' at ' + s;
+    ret += ' as ' + s + ' at @s';
     x = coordinate();
     if (!x.isOrigin()) ret += ' positioned ' + x;
     if (look.tag == Tag.ID && look.lexeme == "detect") {
@@ -354,4 +358,4 @@ function updateExecute(str, callback) {
   return ret
 }
 
-module.exports = updateExecute;
+//module.exports = updateExecute;

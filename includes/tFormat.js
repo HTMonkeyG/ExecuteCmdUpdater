@@ -38,12 +38,25 @@ function printF(txt, arr) {
   if (txt == void 0 || !txt.length) return '';
   for (var i = 0; i < txt.length; i++) {
     if (txt[i] == '%')
-      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += (arr[txt[i + 1]] || ''), i++) : ret += '%';
+      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += (arr[txt[i + 1]].toString() || ''), i++) : ret += '%';
     else
       ret += txt[i]
   }
   ret = mcFmtCode(ret),
     console.log(ret);
+  return ret
+}
+
+function translateF(txt, arr){
+  var ret = '';
+  if (txt == void 0 || !txt.length) return '';
+  for (var i = 0; i < txt.length; i++) {
+    if (txt[i] == '%')
+      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += (arr[txt[i + 1]].toString() || ''), i++) : ret += '%';
+    else
+      ret += txt[i]
+  }
+  console.log(ret);
   return ret
 }
 
@@ -109,6 +122,7 @@ function limPrgBar(title, percent) {
 exports.rgb = rgb,
   exports.fmtDate = fmtDate,
   exports.printF = printF,
+  exports.translateF = translateF,
   exports.mcFmtCode = mcFmtCode,
   exports.mcFmtLog = mcFmtLog,
   exports.hex2buf = hex2buf,
