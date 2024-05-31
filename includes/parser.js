@@ -5,9 +5,11 @@ const Tag = {
   NUM: 3,
   STRING: 4,
   RELATIVE: 5,
-  RANGE: 6,
+  SEL: 6,
   EOF: 0xFFFF
 };
+
+var subCmdList = ["align", "anchored", "as", "at", "facing", "in", "on", "positioned", "rotated", "summon", "if", "unless", "block", "blocks", "entity", "score"];
 
 class Token {
   constructor(t) { this.tag = t; }
@@ -31,9 +33,9 @@ class Relative extends Token {
   toString() { return this.sym + (this.value || "") }
 }
 
-class Range extends Token {
-  constructor(v1, v2) { super(Tag.RANGE); this.value1 = v1; this.value2 = v2 }
-  toString() { return (this.value1 || "") + ".." + (this.value2 || "") }
+class Selector extends Token {
+  constructor(v) { super(Tag.SEL); this.value = v }
+  toString() { return "@" + this.value }
 }
 
 class Word extends Token {
@@ -75,10 +77,17 @@ var Lexer = (function () {
       case "+": case "-": case ".":
         return tryReadNumber();
     }
+    // 相对量
     if (peek == "~" || peek == "^") return readRel();
+    // 选择器
+    if (peek == "@") return new Selector((readch(), readStringUnquoted()));
+    // 无引号字符串
     if (isUnquotedStringStart()) return new Word(readStringUnquoted(), Tag.ID);
+    // 数字
     if (/\d/.test(peek)) return readNumber();
+    // 字符串
     if (peek == '"') return new String(readStringUntil('"'));
+    // 到头
     if (!canRead()) return Token.EOF;
     var t = new Token(peek);
     peek = " ";
@@ -160,7 +169,7 @@ var Lexer = (function () {
     }
   }
 
-  function isUnquotedStringStart() { return /[a-zA-Z_\u4e00-\u9fa5]/.test(peek) }
+  function isUnquotedStringStart() { return /[a-zA-Z_\u4e00-\u9fa5§]/.test(peek) }
 
   function readStringUnquoted() {
     var result = "";
@@ -168,7 +177,7 @@ var Lexer = (function () {
     result += peek;
     while (canRead()) {
       readch();
-      if (!/[a-zA-Z0-9_\u4e00-\u9fa5]/.test(peek)) break;
+      if (!/[a-zA-Z0-9\u4e00-\u9fa5\.§_\-]/.test(peek)) break;
       result += peek;
     }
     return result
@@ -217,8 +226,11 @@ function updateExecute(str, callback) {
   typeof callback != 'function' && (callback = () => { });
 
   function move() { look = Lexer.scan() }
-  function match(t) { if (look.tag != t) errorUnexp(); }
-  function errorUnexp() { throw new Error(`Position ${Lexer.getPtr()}: Unexpected ${look}`) }
+  function match(t) { if (look.tag != t) errorUnexp(t); }
+  function errorUnexp(e) {
+    if (e) throw new Error(`Position ${Lexer.getPtr()}: Unexpected "${look}"; Expected: "${e}"`)
+    else throw new Error(`Position ${Lexer.getPtr()}: Unexpected "${look}"`)
+  }
 
   // 一个选择器参数
   function selectorParam() {
@@ -227,13 +239,15 @@ function updateExecute(str, callback) {
     match(Tag.ID);
     ret += look.lexeme;
     move();
-    match("=");
-    ret += "="
+    if (look.tag != "=" && look.tag != "=!")
+      errorUnexp();
+    ret += look.tag;
     move();
     if (look.tag == "{" || look.tag == "[") {
       var terminator = look.tag == "{" ? "}" : "]";
       ret += look.tag;
       ret += selectorParam();
+      while (look.tag == ",") ret += "," + selectorParam();
       match(terminator);
       ret += terminator;
     } else if (look.tag == Tag.NUM) {
@@ -256,13 +270,13 @@ function updateExecute(str, callback) {
   }
 
   function selector() {
-    var ret = '@';
+    var ret = '';
     // 选择器变量
-    if (look.tag == Tag.ID || look.tag == Tag.STRING) return look;
-    match('@');
-    move();
-    match(Tag.ID);
-    ret += look.lexeme;
+    if (look.tag == Tag.ID || look.tag == Tag.STRING) {
+      var t = look; move(); return t;
+    }
+    match(Tag.SEL);
+    ret += look.toString();
     move();
     if (look.tag != "[") return ret
 
@@ -291,24 +305,32 @@ function updateExecute(str, callback) {
 
   // detect子命令
   function detectSub() {
-    var ret = '', x = coordinate();
+    var ret = '', x = coordinate(), block;
     ret += x;
     match(Tag.ID);
-    ret += " " + look;
+    block = look.lexeme;
+    ret += " " + block;
     move();
     match(Tag.NUM);
     if (look.value != -1)
-      callback(1, Lexer.getPtr(), look.value);
+      callback(1, Lexer.getPtr(), block, look.value);
     move();
     return ret
   }
 
   // 一层execute
   function execute() {
-    var s = selector()
-      , x = coordinate()
-      , ret = '';
+    var s = selector(), ret = '', x;
+
+    // 疑似新版execute
+    if (subCmdList.reduce(function (a, e) {
+      if (e == s) return a + 1
+      return a
+    }, 0))
+      callback(2, Lexer.getPtr(), s);
+
     ret += ' at ' + s;
+    x = coordinate();
     if (!x.isOrigin()) ret += ' positioned ' + x;
     if (look.tag == Tag.ID && look.lexeme == "detect") {
       move();

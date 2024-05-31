@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2024 HTMonkeyG
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 const proc = require('process'),
   rl = require('readline');
 
@@ -20,6 +44,7 @@ function printF(txt, arr) {
   }
   ret = mcFmtCode(ret),
     console.log(ret);
+  return ret
 }
 
 function hex2buf(txt) {
@@ -36,26 +61,7 @@ function hex2buf(txt) {
 
 function mcFmtCode(txt) {
   function code2console(a) {
-    var table = {
-      '0': '\x1b[30m',
-      '1': '\x1b[34m',
-      '2': '\x1b[32m',
-      '3': '\x1b[36m',
-      '4': '\x1b[31m',
-      '5': '\x1b[35m',
-      '6': '\x1b[33m',
-      '7': '\x1b[37m',
-      '8': '\x1b[90m',
-      '9': '\x1b[94m',
-      'a': '\x1b[92m',
-      'b': '\x1b[96m',
-      'c': '\x1b[91m',
-      'd': '\x1b[95m',
-      'e': '\x1b[93m',
-      'f': '\x1b[97m',
-      'g': '\x1b[38;2;221;214;5;m',
-      'r': '\x1b[0m'
-    };
+    var table = { '0': '\x1b[30m', '1': '\x1b[34m', '2': '\x1b[32m', '3': '\x1b[36m', '4': '\x1b[31m', '5': '\x1b[35m', '6': '\x1b[33m', '7': '\x1b[37m', '8': '\x1b[90m', '9': '\x1b[94m', 'a': '\x1b[92m', 'b': '\x1b[96m', 'c': '\x1b[91m', 'd': '\x1b[95m', 'e': '\x1b[93m', 'f': '\x1b[97m', 'g': '\x1b[38;2;221;214;5;m', 'r': '\x1b[0m' };
     return table[a] || ''
   }
   var ret = '';

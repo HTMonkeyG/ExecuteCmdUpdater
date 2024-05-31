@@ -1,15 +1,18 @@
 const NBT = require("parsenbt-js")
-  , fs = require("fs")
+  , fs = require("fs-extra")
   , pl = require('path')
   , { LevelDB } = require('leveldb-zlib')
   , rl = require("readline")
   , process = require("process")
-  , XOR = require("./includes/XOREncryptHelper.js");
+  , XOR = require("./includes/XOREncryptHelper.js")
+  , UpdateExecute = require("./includes/parser.js");
 
 const text = require("./includes/text.js")
   , fmt = require("./includes/tFormat.js");
 
 var printf = fmt.printF;
+
+var db;
 
 var UI = rl.promises.createInterface({
   input: process.stdin,
@@ -19,7 +22,10 @@ var UI = rl.promises.createInterface({
 
 UI.on('close', function () {
   printf(text.exit);
-  process.exit(0);
+  if (db && db.isOpen && db.isOpen()) {
+    // 确保数据库关闭后再退出
+    db.close().then(function () { process.exit(0) }, function () { process.exit(1) })
+  } else process.exit(0);
 });
 
 async function main() {
@@ -28,60 +34,101 @@ async function main() {
     var path = await UI.question(UI.getPrompt());
     path = pl.resolve('', path);
 
+    // 存在性及完整性检测
     if (fs.existsSync(path) && fs.statSync(path).isDirectory()) {
-      fmt.printF(text.test);
+      printf(text.test);
       if (!integrityTest(path, function (a) {
-        fmt.printF(text.missing, [a])
+        printf(text.missing, [a])
       })) {
-        fmt.printF(text.testFail);
+        printf(text.testFail);
         continue;
       }
       else
-        fmt.printF(text.testSucc);
+        printf(text.testSucc);
     } else {
-      fmt.printF(text.targetInvalid);
+      printf(text.targetInvalid);
       continue;
     }
 
     var dbPath = pl.join(path, 'db'),
       ls = fs.readdirSync(dbPath);
 
+    // 查找加密文件
     for (var i = 0; i < ls.length; i++) {
       var a = ls[i],
         tempBuf = fs.readFileSync(pl.join(dbPath, a));
       if (XOR.checkFileIsEncrypt(tempBuf)) {
-        fmt.printF(text.foundEncFile);
-        process.exit(1);
+        printf(text.foundEncFile);
+        UI.close();
       }
     }
 
-    var db = new LevelDB(dbPath, { createIfMissing: false });
+    printf(text.confirmOp);
+    if ((await UI.question('')).toLocaleLowerCase() != "y") UI.close();
 
+    printf(text.scanning);
+    db = new LevelDB(dbPath, { createIfMissing: false });
     await db.open();
 
-    for await (let chunk of db) {
-      var meta = getChunkMeta(chunk[0]);
-      if(meta && meta.pos[0] > 620 && meta.type == 0x31) {
-        console.log(NBT.ReadSerial(toArrayBuffer(chunk[1]), true))
-        break;
-      }
-      /*if (meta && meta.type == 0x31) {
-        var blockEntity = NBT.Reader(toArrayBuffer(chunk[1]), true);
-        if (blockEntity["comp>"]["str>id"] == "CommandBlock") {
-          var cmd = blockEntity["comp>"]["str>Command"];
-          console.log(cmd);
-        }
-      }*/
-      if(meta && meta.pos[0] == 625 && meta.pos[1] == 625)
-        console.log(meta, chunk[1])
-    }
+    /** 命令块计数, 成功计数, 错误计数 */
+    var ctr = [0, 0, 0];
+    /** 日志保存 */
+    var log = "";
+    /** 当前区块无命令块 */
+    var noCbInChunk = true;
 
+    // 遍历
+    for await (let kvpair of db) {
+      var meta = getChunkMeta(kvpair[0]);
+      if (meta && meta.type == 0x31) {
+        var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
+        nbt.forEach(function (ele, ind) {
+          if (ele["comp>"]["str>Command"]) {
+            ctr[0]++; noCbInChunk = false;
+            var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
+              , succ = true
+              , updatedCmd = '';
+            try {
+              updatedCmd = UpdateExecute(ele["comp>"]["str>Command"], (a, b, c, d) => {
+                if (a == 1) {
+                  printf(text.foundDetect, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ${d} ...`]);
+                  succ = false;
+                } else if (a == 2) {
+                  printf(text.foundNewExe, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ...`]);
+                  succ = false;
+                }
+              })
+            } catch (e) {
+              printf(text.foundSyntaxErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+              ctr[2]++;
+              return
+            }
+            if (succ) {
+              ctr[1]++;
+              nbt[ind]["comp>"]["str>Command"] = updatedCmd;
+            }
+            else ctr[2]++;
+          }
+        });
+        if (!noCbInChunk) {
+          var updatedBlocks = nbt.reduce(function (buf, ele) {
+            var binData = NBT.Writer(ele, true);
+            return Buffer.concat([buf, new Uint8Array(binData)])
+          }, Buffer.alloc(0));
+          // 回写
+          db.put(kvpair[0], updatedBlocks);
+        }
+      }
+    }
+    printf(text.totalCb, ctr);
     await db.close();
+    UI.close();
   }
 }
 
 main();
 
+/** 完整性测试 */
 function integrityTest(tP, log) {
   var ls = fs.readdirSync(tP),
     pass = !0;
@@ -108,6 +155,7 @@ function integrityTest(tP, log) {
   return pass;
 }
 
+/** 检测key是否为区块并获取区块元数据 */
 function getChunkMeta(buf) {
   if (buf.length < 9) return false;
   var pos = [buf.readInt32LE(0), buf.readInt32LE(4)];
@@ -124,6 +172,7 @@ function getChunkMeta(buf) {
   return { pos: pos, type: type, index: index, dimension: dimension }
 }
 
+/** 将Buffer转换为ArrayBuffer */
 function toArrayBuffer(buf) {
   var ab = new ArrayBuffer(buf.length);
   var view = new Uint8Array(ab);
