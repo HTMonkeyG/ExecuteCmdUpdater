@@ -358,4 +358,4 @@ function updateExecute(str, callback) {
   return ret
 }
 
-//module.exports = updateExecute;
+module.exports = updateExecute;
