@@ -28,9 +28,11 @@ UI.on('close', function () {
   } else process.exit(0);
 });
 
+printf(text.welcome);
+
 async function main() {
   while (1) {
-    printf(text.welcome);
+    printf(text.enterPath);
     var path = await UI.question(UI.getPrompt());
     path = pl.resolve('', path);
 
