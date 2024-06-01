@@ -14,6 +14,7 @@ var log = {
   testFail: '§4完整性测试未通过, 请检查后再试.',
   testSucc: '§2目标文件夹完整.',
   totalCb: '§2转换完成, 共发现%0个命令块, 成功转换%1个命令块, 共%2个命令块产生错误或警告.',
+  updateStructure: '§3是否更新已保存的结构内命令块[Y/n]',
   welcome: '§3欢迎使用ExecuteCmdUpdater v1.0.0'
 };
 

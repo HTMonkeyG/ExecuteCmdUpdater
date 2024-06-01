@@ -90,7 +90,7 @@ var Lexer = (function () {
     // 数字
     if (/\d/.test(peek)) return readNumber();
     // 字符串
-    if (peek == '"') return new String(readStringUntil('"'));
+    if (peek == '"') return new String(readStringUntil('"', true));
     // 到头
     if (!canRead()) return Token.EOF;
     var t = new Token(peek);
@@ -165,7 +165,7 @@ var Lexer = (function () {
         result += peek;
         escaped = false;
       } else if (peek == "\\" && allowescape)
-        escaped = true;
+        result += "\\", escaped = true;
       else if (peek == terminator)
         return readch(), result;
       else
