@@ -65,10 +65,12 @@ var Lexer = (function () {
   function fallback() { peek = str[--ptr - 1] }
   function isch(c) { if (peek != c) return !1; peek = " "; return !0 }
   function scan() {
+    whitespace = false;
+    lineTerm = false;
     // 跳过空白
     for (; canRead(); readch()) {
-      if (peek === ' ' || peek === "\t") continue;
-      else if (peek === "\n") line += 1;
+      if (peek === ' ' || peek === "\t") { whitespace = true; continue; }
+      else if (peek === "\n") { lineTerm = true, line += 1; }
       else break;
     }
 
@@ -107,13 +109,29 @@ var Lexer = (function () {
       case "-":
         readch();
         if (/\d/.test(peek)) return readNumber(!0);
+        else if (isUnquotedStringStart()) return new Word("-" + readStringUnquoted(), Tag.ID);
         else return new Token("-");
       case ".":
         readch();
         if (/\d/.test(peek)) return readDecimal();
-        if (isch(".")) return new Token("..");
+        if (isch(".")) return new Token("..");/*{
+          readch();
+          if (isUnquotedStringStart()) return new Word(".." + readStringUnquoted(), Tag.ID);
+          else if (peek == ".") {
+            readch();
+            if (isUnquotedStringStart()) return new Word("...." + readStringUnquoted(), Tag.ID);
+          }
+          else fallback();
+          return new Token("..");
+        }
+        else if (isUnquotedStringStart()) return new Word("." + readStringUnquoted(), Tag.ID);*/
         else return new Token(".");
     }
+  }
+
+
+  function readDots() {
+
   }
 
   function readNumber(n) {
@@ -142,7 +160,7 @@ var Lexer = (function () {
       d *= 10;
       readch();
     }
-    return new Numeric(x * (n ? -1 : 1))
+    return new Numeric(x * (n ? -1 : 1), true)
   }
 
   function readRel() {
@@ -159,9 +177,6 @@ var Lexer = (function () {
     while (canRead()) {
       readch();
       if (escaped) {
-        /*if (peek == "n")
-          result += "\n";
-        else*/
         result += peek;
         escaped = false;
       } else if (peek == "\\" && allowescape)
@@ -173,7 +188,7 @@ var Lexer = (function () {
     }
   }
 
-  function isUnquotedStringStart() { return /[a-zA-Z_\u4e00-\u9fa5§]/.test(peek) }
+  function isUnquotedStringStart() { return !/[+=~!\[\]{}^'"|`,\\/;*&%$#@<>.\ 0-9]/.test(peek)/*/[a-zA-Z_\u4e00-\u9fa5§]/.test(peek)*/ }
 
   function readStringUnquoted() {
     var result = "";
@@ -181,7 +196,15 @@ var Lexer = (function () {
     result += peek;
     while (canRead()) {
       readch();
-      if (!/[a-zA-Z0-9\u4e00-\u9fa5\.§_\-\:]/.test(peek)) break;
+      //if (!/[a-zA-Z0-9\u4e00-\u9fa5\.§_\-\:]/.test(peek)) break;
+      if (/[+=~!\[\]{}^'"|`,\\/;*&%$#@<>\ ]/.test(peek)) break;
+      else if (peek == ".") {
+        readch();
+        if (/\d/.test(peek)) {
+          fallback(); break;
+        }
+        fallback();
+      }
       result += peek;
     }
     return result
@@ -190,7 +213,9 @@ var Lexer = (function () {
   var str = ""
     , ptr = 0
     , peek = " "
-    , line = 0;
+    , line = 0
+    , lineTerm = false
+    , whitespace = false;
 
   return {
     scan: scan,

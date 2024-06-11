@@ -30,106 +30,6 @@ UI.on('close', function () {
 
 printf(text.welcome);
 
-async function main() {
-  while (1) {
-    printf(text.enterPath);
-    var path = await UI.question(UI.getPrompt());
-    path = pl.resolve('', path);
-
-    // 存在性及完整性检测
-    if (fs.existsSync(path) && fs.statSync(path).isDirectory()) {
-      printf(text.test);
-      if (!integrityTest(path, function (a) {
-        printf(text.missing, [a])
-      })) {
-        printf(text.testFail);
-        continue;
-      }
-      else
-        printf(text.testSucc);
-    } else {
-      printf(text.targetInvalid);
-      continue;
-    }
-
-    var dbPath = pl.join(path, 'db'),
-      ls = fs.readdirSync(dbPath);
-
-    // 查找加密文件
-    for (var i = 0; i < ls.length; i++) {
-      var a = ls[i],
-        tempBuf = fs.readFileSync(pl.join(dbPath, a));
-      if (XOR.checkFileIsEncrypt(tempBuf)) {
-        printf(text.foundEncFile);
-        UI.close();
-      }
-    }
-
-    printf(text.confirmOp);
-    if ((await UI.question('')).toLocaleLowerCase() != "y") UI.close();
-
-    printf(text.scanning);
-    db = new LevelDB(dbPath, { createIfMissing: false });
-    await db.open();
-
-    /** 命令块计数, 成功计数, 错误计数 */
-    var ctr = [0, 0, 0];
-    /** 日志保存 */
-    var log = "";
-    /** 当前区块无命令块 */
-    var noCbInChunk = true;
-
-    // 遍历
-    for await (let kvpair of db) {
-      var meta = getChunkMeta(kvpair[0]);
-      // 是区块而且是方块实体区段
-      if (meta && meta.type == 0x31) {
-        var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
-        nbt.forEach(function (ele, ind) {
-          if (ele["comp>"]["str>Command"]) {
-            ctr[0]++; noCbInChunk = false;
-            var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
-              , succ = true
-              , updatedCmd = '';
-            try {
-              updatedCmd = UpdateExecute(ele["comp>"]["str>Command"], (a, b, c, d) => {
-                if (a == 1) {
-                  printf(text.foundDetect, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ${d} ...`]);
-                  succ = false;
-                } else if (a == 2) {
-                  printf(text.foundNewExe, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ...`]);
-                  succ = false;
-                }
-              })
-            } catch (e) {
-              printf(text.foundSyntaxErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
-              ctr[2]++;
-              return
-            }
-            if (succ) {
-              ctr[1]++;
-              nbt[ind]["comp>"]["str>Command"] = updatedCmd;
-            } else ctr[2]++;
-          }
-        });
-        if (!noCbInChunk) {
-          var updatedBlocks = nbt.reduce(function (buf, ele) {
-            var binData = NBT.Writer(ele, true);
-            return Buffer.concat([buf, new Uint8Array(binData)])
-          }, Buffer.alloc(0));
-          // 回写
-          db.put(kvpair[0], updatedBlocks);
-        }
-      }
-    }
-    printf(text.totalCb, ctr);
-    await db.close();
-    printf(text.ctrlCExit);
-  }
-}
-
-main();
-
 /** 完整性测试 */
 function integrityTest(tP, log) {
   var ls = fs.readdirSync(tP),
@@ -183,3 +83,111 @@ function toArrayBuffer(buf) {
   }
   return ab;
 }
+
+/** 查找加密文件 */
+function checkEncFiles(path) {
+  var dbPath = pl.join(path, 'db');
+  for (var a of fs.readdirSync(dbPath)) {
+    var tempBuf = fs.statSync(pl.join(dbPath, a)).isFile() && fs.readFileSync(pl.join(dbPath, a));
+    if (XOR.checkFileIsEncrypt(tempBuf))
+      return false
+  }
+  return true
+}
+
+/** 确认操作 */
+async function confirmOperation(text) {
+  printf(text);
+  if ((await UI.question('')).toLocaleLowerCase() != "y") return false;
+  return true
+}
+
+async function main() {
+  while (1) {
+    printf(text.enterPath);
+    var path = await UI.question(UI.getPrompt());
+    path = pl.resolve('', path);
+
+    // 存在性及完整性检测
+    if (fs.existsSync(path) && fs.statSync(path).isDirectory()) {
+      printf(text.test);
+      if (!integrityTest(path, (a) => printf(text.missing, [a]))) {
+        printf(text.testFail);
+        continue;
+      }
+      else printf(text.testSucc);
+    } else {
+      printf(text.targetInvalid);
+      continue;
+    }
+
+    if (!checkEncFiles(path)) {
+      printf(text.foundEncFile);
+      break;
+    }
+
+    if (!await confirmOperation(text.confirmOp)) UI.close();
+
+    printf(text.scanning);
+    db = new LevelDB(pl.join(path, 'db'), { createIfMissing: false });
+    await db.open();
+
+    /** 命令块计数, 成功计数, 错误计数 */
+    var ctr = [0, 0, 0];
+    /** 日志保存 */
+    var log = "";
+    /** 当前区块无命令块 */
+    var noCbInChunk = true;
+
+    // 遍历
+    for await (let kvpair of db) {
+      var meta = getChunkMeta(kvpair[0]);
+      // 是区块而且是方块实体区段
+      if (meta && meta.type == 0x31) {
+        var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
+        nbt.forEach(function (ele, ind) {
+          if (ele["comp>"]["str>Command"]) {
+            ctr[0]++; noCbInChunk = false;
+            var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
+              , succ = true
+              , updatedCmd = '';
+            try {
+              updatedCmd = UpdateExecute(ele["comp>"]["str>Command"], (a, b, c, d) => {
+                if (a == 1) {
+                  printf(text.foundDetect, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ${d} ...`]);
+                  succ = false;
+                } else if (a == 2) {
+                  printf(text.foundNewExe, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ...`]);
+                  succ = false;
+                }
+              })
+            } catch (e) {
+              printf(text.foundSyntaxErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+              ctr[2]++;
+              return
+            }
+            if (succ) {
+              ctr[1]++;
+              nbt[ind]["comp>"]["str>Command"] = updatedCmd;
+              // 更新版本, 1.18为19
+              nbt[ind]["comp>"]["i32>Version"] = 19;
+            } else ctr[2]++;
+          }
+        });
+        if (!noCbInChunk) {
+          var updatedBlocks = nbt.reduce(function (buf, ele) {
+            var binData = NBT.Writer(ele, true);
+            return Buffer.concat([buf, new Uint8Array(binData)])
+          }, Buffer.alloc(0));
+          // 回写
+          db.put(kvpair[0], updatedBlocks);
+        }
+      }
+    }
+    printf(text.totalCb, ctr);
+    await db.close();
+    printf(text.ctrlCExit);
+  }
+}
+
+main();

@@ -21,6 +21,11 @@
     "targets": [
       "node18"
     ],
+    "assets": [
+      "node_modules/leveldb-zlib",
+      "node_modules/fs-extra",
+      "node_modules/parsenbt-js"
+    ],
     "outputPath": "dist"
   }
 }
