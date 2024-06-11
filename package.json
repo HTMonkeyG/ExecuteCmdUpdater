@@ -17,7 +17,6 @@
   },
   "pkg": {
     "scripts": "build/**/*.js",
-    "assets": "views/**/*",
     "targets": [
       "node18"
     ],
