@@ -59,7 +59,7 @@ function encryptFile(buf, key) {
  * Decrypt buffer
  * @param {Buffer} buf - file buffer
  * @param {Buffer|Array} key - decrypt key, ascii '88329851' by default
- * @returns {Buffer} decrypted buffer
+ * @returns {Buffer|Boolean} decrypted buffer, false if buffer is not encrypted
  */
 function decryptFile(buf, key) {
   if (!key || !key.length)
