@@ -248,17 +248,15 @@ class Coordinate3D {
 }
 
 // 更新execute的函数
-function updateExecute(str, callback) {
+function updateExecute(str) {
   var look, ret = 'execute';
   Lexer.init(str);
-
-  typeof callback != 'function' && (callback = () => { });
 
   function move() { look = Lexer.scan() }
   function match(t) { if (look.tag != t) errorUnexp(t); }
   function errorUnexp(e) {
-    if (e) throw new Error(`Position ${Lexer.getPtr()}: Unexpected "${look}"; Expected: "${e}"`)
-    else throw new Error(`Position ${Lexer.getPtr()}: Unexpected "${look}"`)
+    if (e) throw new Error(`位置 ${Lexer.getPtr()}: 意料之外的符号 "${look}"; 期望为符号 "${e}"`);
+    else throw new Error(`位置 ${Lexer.getPtr()}: 意料之外的符号 "${look}"`)
   }
 
   // 一个选择器参数
@@ -340,9 +338,10 @@ function updateExecute(str, callback) {
     block = look.lexeme;
     ret += " " + block;
     move();
+    // **浮点数也可通过验证**
     match(Tag.NUM);
     if (look.value != -1)
-      callback(1, Lexer.getPtr(), block, look.value);
+      throw new Error(`位置 ${Lexer.getPtr()}: 无法转换的detect子命令 "${block} ${look.value}"`);
     move();
     return ret
   }
@@ -356,7 +355,7 @@ function updateExecute(str, callback) {
       if (e == s) return a + 1
       return a
     }, 0))
-      callback(2, Lexer.getPtr(), s);
+      throw new Error(`位置 ${Lexer.getPtr()}: 疑似新版execute子命令: "${s}"`);
 
     ret += ' as ' + s + ' at @s';
     x = coordinate();

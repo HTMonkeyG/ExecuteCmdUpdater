@@ -74,6 +74,21 @@ function getChunkMeta(buf) {
   return { pos: pos, type: type, index: index, dimension: dimension }
 }
 
+/** 检测key是否为结构并获取结构元数据 */
+function getStructureMeta(buf) {
+  // structuretemplate_ 前缀长度
+  if (buf.length < 18) return false;
+  var name = buf.toString();
+  if (name.substring(0, 18) !== "structuretemplate_") return false;
+  // 正常结构不可能有多个冒号
+  var r = name.substring(18).split(":");
+  if (r.length > 2) return false;
+  return {
+    namespace: r[0],
+    name: r[1]
+  }
+}
+
 /** 将Buffer转换为ArrayBuffer */
 function toArrayBuffer(buf) {
   var ab = new ArrayBuffer(buf.length);
@@ -97,15 +112,14 @@ function checkEncFiles(path) {
 
 /** 确认操作 */
 async function confirmOperation(text) {
-  printf(text);
-  if ((await UI.question('')).toLocaleLowerCase() != "y") return false;
+  if ((await UI.question(fmt.translateF(text))).toLocaleLowerCase() != "y") return false;
   return true
 }
 
 async function main() {
   while (1) {
     printf(text.enterPath);
-    var path = await UI.question(UI.getPrompt());
+    var path = await UI.question(UI.getPrompt()), updateStructure = false;
     path = pl.resolve('', path);
 
     // 存在性及完整性检测
@@ -121,59 +135,59 @@ async function main() {
       continue;
     }
 
+    // 加密文件检测
     if (!checkEncFiles(path)) {
       printf(text.foundEncFile);
-      break;
+      continue;
     }
 
+    // 更新结构
+    if (await confirmOperation(text.updateStructure)) updateStructure = true;
+
+    // 确认操作
     if (!await confirmOperation(text.confirmOp)) UI.close();
 
     printf(text.scanning);
     db = new LevelDB(pl.join(path, 'db'), { createIfMissing: false });
     await db.open();
 
-    /** 命令块计数, 成功计数, 错误计数 */
-    var ctr = [0, 0, 0];
+    /** 命令块计数, 成功计数, 错误计数, 结构成功计数, 结构错误计数 */
+    var ctr = [0, 0, 0, 0, 0];
     /** 日志保存 */
-    var log = "";
-    /** 当前区块无命令块 */
-    var noCbInChunk = true;
+    var logPath = pl.join(path, fmt.fmtDate(new Date()) + '.log');
 
     // 遍历
     for await (let kvpair of db) {
-      var meta = getChunkMeta(kvpair[0]);
+      var meta = getChunkMeta(kvpair[0])
+        , noCbInChunk = true;
       // 是区块而且是方块实体区段
-      if (meta && meta.type == 0x31) {
+      if (meta && meta.type == 0x31 && kvpair[1].length) {
         var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
-        nbt.forEach(function (ele, ind) {
+        for (var ele of nbt) {
           if (ele["comp>"]["str>Command"]) {
             ctr[0]++; noCbInChunk = false;
             var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
-              , succ = true
               , updatedCmd = '';
             try {
-              updatedCmd = UpdateExecute(ele["comp>"]["str>Command"], (a, b, c, d) => {
-                if (a == 1) {
-                  printf(text.foundDetect, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ${d} ...`]);
-                  succ = false;
-                } else if (a == 2) {
-                  printf(text.foundNewExe, [cbPos[0], cbPos[1], cbPos[2], `... ${c} ...`]);
-                  succ = false;
-                }
-              })
-            } catch (e) {
-              printf(text.foundSyntaxErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
-              ctr[2]++;
-              return
-            }
-            if (succ) {
+              updatedCmd = UpdateExecute(ele["comp>"]["str>Command"]);
               ctr[1]++;
-              nbt[ind]["comp>"]["str>Command"] = updatedCmd;
-              // 更新版本, 1.18为19
-              nbt[ind]["comp>"]["i32>Version"] = 19;
-            } else ctr[2]++;
+              ele["comp>"]["str>Command"] = updatedCmd;
+              // 更新命令块数据版本, 1.18为19
+              // 此处使用从1.20.60.2获取的版本数值36
+              //ele["comp>"]["i32>Version"] = 36;
+              // 此处使用从1.19.50.23获取的版本数值25
+              if (ele["comp>"]["i32>Version"] <= 20)
+                ele["comp>"]["i32>Version"] = 25;
+            } catch (e) {
+              printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+              try {
+                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]));
+              } catch (e) { }
+              ctr[2]++;
+            }
           }
-        });
+        }
+
         if (!noCbInChunk) {
           var updatedBlocks = nbt.reduce(function (buf, ele) {
             var binData = NBT.Writer(ele, true);
@@ -183,10 +197,57 @@ async function main() {
           db.put(kvpair[0], updatedBlocks);
         }
       }
+      noCbInChunk = true;
+
+      // 结构
+      meta = updateStructure ? getStructureMeta(kvpair[0]) : false;
+      if (meta && kvpair[1].length) {
+        var nbt = NBT.Reader(toArrayBuffer(kvpair[1]), true)
+          , palette = nbt["comp>"]["comp>structure"]["comp>palette"]["comp>default"]["comp>block_position_data"]
+          , originPos = nbt["comp>"]["list>structure_world_origin"];
+        for (var ind in palette) {
+          var ele = palette[ind]["comp>block_entity_data"];
+          if (ele["str>Command"]) {
+            ctr[0]++; noCbInChunk = false;
+            var cbPos = [
+              ele["i32>x"] - originPos[1],
+              ele["i32>y"] - originPos[2],
+              ele["i32>z"] - originPos[3]
+            ]
+              , updatedCmd = '';
+
+            try {
+              updatedCmd = UpdateExecute(ele["str>Command"]);
+              ctr[3]++;
+              ele["str>Command"] = updatedCmd;
+              // 更新命令块数据版本, 1.18为19
+              // 此处使用从1.20.60.2获取的版本数值36
+              //ele["i32>Version"] = 36;
+              // 此处使用从1.19.50.23获取的版本数值25
+              if (ele["i32>Version"] <= 20)
+                ele["i32>Version"] = 25;
+            } catch (e) {
+              printf(text.foundErrStru, [kvpair[0].toString('utf8'), cbPos[0], cbPos[1], cbPos[2], e.message]);
+              try {
+                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]));
+              } catch (e) { }
+              ctr[4]++;
+            }
+          }
+        }
+
+        if (!noCbInChunk) {
+          var binData = NBT.Writer(nbt, true);
+          // 回写
+          db.put(kvpair[0], binData);
+        }
+      }
     }
+
     printf(text.totalCb, ctr);
+    printf(text.logSavePath, [logPath]);
     await db.close();
-    printf(text.ctrlCExit);
+    await UI.question(fmt.translateF(text.ctrlCExit));
   }
 }
 

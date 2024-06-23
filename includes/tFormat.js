@@ -22,42 +22,62 @@
   SOFTWARE.
 */
 
-const proc = require('process'),
-  rl = require('readline');
+const proc = require('process')
+  , rl = require('readline');
 
-function rgb(r, g, b) {
-  return `\x1b[38;2;${r};${g};${b};m`
-}
+/**
+ * Turns given RGB value into terminal format code
+ * @param {Number} r 
+ * @param {Number} g 
+ * @param {Number} b 
+ * @returns {String}
+ */
+function rgb(r, g, b) { return `\x1b[38;2;${r};${g};${b};m` }
 
-function mcFmtLog(txt) {
-  console.log(mcFmtCode(txt))
-}
+/**
+ * Turns MCBE format code in given text to terminal format code,
+ * and print it to console
+ * @param {String} text - Input
+ * @returns {String} Result
+ */
+function mcFmtLog(text) { var res = mcFmtCode(text); console.log(res); return res }
 
-function printF(txt, arr) {
+/**
+ * Print text with format code and replacement
+ * @param {String} text - Input
+ * @param {String[]} replace - Replacement array
+ * @returns {String} Result
+ */
+function printF(txt, replace) {
   var ret = '';
   if (txt == void 0 || !txt.length) return '';
   for (var i = 0; i < txt.length; i++) {
     if (txt[i] == '%')
-      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += (arr[txt[i + 1]].toString() || ''), i++) : ret += '%';
+      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += replace[txt[i + 1]], i++) : ret += '%';
     else
       ret += txt[i]
   }
-  ret = mcFmtCode(ret),
-    console.log(ret);
-  return ret
-}
-
-function translateF(txt, arr){
-  var ret = '';
-  if (txt == void 0 || !txt.length) return '';
-  for (var i = 0; i < txt.length; i++) {
-    if (txt[i] == '%')
-      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += (arr[txt[i + 1]].toString() || ''), i++) : ret += '%';
-    else
-      ret += txt[i]
-  }
+  ret = mcFmtCode(ret);
   console.log(ret);
   return ret
+}
+
+/**
+ * Format text with replacement
+ * @param {String} text - Input
+ * @param {String[]} replace - Replacement array
+ * @returns {String} Result
+ */
+function translateF(txt, replace) {
+  var ret = '';
+  if (txt == void 0 || !txt.length) return '';
+  for (var i = 0; i < txt.length; i++) {
+    if (txt[i] == '%')
+      (txt[i + 1] != void 0 && /[0-9]+/.test(txt[i + 1])) ? (ret += replace[txt[i + 1]], i++) : ret += '%';
+    else
+      ret += txt[i]
+  }
+  return mcFmtCode(ret);
 }
 
 function hex2buf(txt) {
@@ -74,7 +94,7 @@ function hex2buf(txt) {
 
 function mcFmtCode(txt) {
   function code2console(a) {
-    var table = { '0': '\x1b[30m', '1': '\x1b[34m', '2': '\x1b[32m', '3': '\x1b[36m', '4': '\x1b[31m', '5': '\x1b[35m', '6': '\x1b[33m', '7': '\x1b[37m', '8': '\x1b[90m', '9': '\x1b[94m', 'a': '\x1b[92m', 'b': '\x1b[96m', 'c': '\x1b[91m', 'd': '\x1b[95m', 'e': '\x1b[93m', 'f': '\x1b[97m', 'g': '\x1b[38;2;221;214;5;m', 'r': '\x1b[0m' };
+    var table = { '0': '\x1b[30m', '1': '\x1b[34m', '2': '\x1b[32m', '3': '\x1b[36m', '4': '\x1b[31m', '5': '\x1b[35m', '6': '\x1b[33m', '7': '\x1b[37m', '8': '\x1b[90m', '9': '\x1b[94m', 'a': '\x1b[92m', 'b': '\x1b[96m', 'c': '\x1b[91m', 'd': '\x1b[95m', 'e': '\x1b[93m', 'f': '\x1b[97m', 'g': '\x1b[38;2;221;214;5;m', 'l': '\x1b[1m', 'r': '\x1b[0m' };
     return table[a] || ''
   }
   var ret = '';
@@ -89,7 +109,6 @@ function mcFmtCode(txt) {
 }
 
 function fmtDate(date) {
-  var d = new Date(date);
   var Y = date.getFullYear();
   var M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1);
   var D = (date.getDate() < 10 ? '0' + date.getDate() : date.getDate());
@@ -99,20 +118,27 @@ function fmtDate(date) {
   return '' + Y + M + D + h + m + s;
 }
 
-function limPrgBar(title, percent) {
+/**
+ * Creates a progress bar
+ * @param {String} title - Title text
+ * @param {Number} percent - Percentage
+ * @param {Number} [length] - Length limit
+ */
+function limPrgBar(title, percent, length) {
   var txt = '', a;
-  typeof (percent) !== 'number' && (percent = 0);
+  typeof (length) == 'number' ? (length > proc.stdout.columns && (length = proc.stdout.columns)) : (length = proc.stdout.columns);
+  typeof (percent) != 'number' && (percent = 0);
   percent > 1 && (percent = 1);
   rl.moveCursor(proc.stdout, 0, -2);
   rl.clearLine(proc.stdout)
-  if (title.length > proc.stdout.columns) {
-    txt = '…' + title.slice(-proc.stdout.columns + 1)
-  } else
+  if (title.length > length)
+    txt = '…' + title.slice(-length + 1)
+  else
     txt = title;
   printF(txt);
   txt = '§9[§b';
-  for (a = 0; a < (proc.stdout.columns - 10); a++) {
-    if ((a / (proc.stdout.columns - 10)) < percent) txt += '=';
+  for (a = 0; a < (length - 10); a++) {
+    if ((a / (length - 10)) < percent) txt += '=';
     else txt += ' '
   }
   txt += '§9] §1' + (Math.ceil(percent * 1000) / 10).toFixed(1) + '%';
