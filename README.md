@@ -12,6 +12,5 @@
 + 输入路径时，请输入level.dat所在的文件夹的绝对路径.
 + 本软件会直接在给定地图文件夹的源文件中进行操作，建议创建备份后再操作，以免造成可能的存档损坏. 不建议连续对同一存档运行多次更新.
 + 对于网易的加密存档，请使用[解密器](https://github.com/HTMonkeyG/XOR-MC-Archive-Decrypt)解密后再使用本工具更新.
-+ 正式版中报错日志会保存至地图文件夹下YYYYMMDD_hhmmss.txt中.
 ## 致谢
 &emsp;&emsp;感谢@Oxygen_Lemon提供的初始想法及测试样本.
