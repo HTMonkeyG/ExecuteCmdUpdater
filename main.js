@@ -227,9 +227,9 @@ async function main() {
               if (ele["i32>Version"] <= 20)
                 ele["i32>Version"] = 25;
             } catch (e) {
-              printf(text.foundErrStru, [kvpair[0].toString('utf8'), cbPos[0], cbPos[1], cbPos[2], e.message]);
+              printf(text.foundErrStru, [kvpair[0].toString('utf8').slice(18), cbPos[0], cbPos[1], cbPos[2], e.message]);
               try {
-                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]));
+                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErrStru, [cbPos[0], cbPos[1], cbPos[2], e.message]));
               } catch (e) { }
               ctr[4]++;
             }
