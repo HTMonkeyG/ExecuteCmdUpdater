@@ -19,7 +19,7 @@ var log = {
   testSucc: '§2目标文件夹完整.',
   totalCb: '§2转换完成, 共发现%0个命令块, 成功转换%1个世界命令块, 失败%2个世界命令块; 成功转换%3个结构命令块, 失败%4个结构命令块.',
   updateStructure: '§3是否更新已保存的结构内命令块[y/N]',
-  welcome: '§3欢迎使用ExecuteCmdUpdater v1.2.0'
+  welcome: '§3欢迎使用ExecuteCmdUpdater v1.2.1'
 };
 
 module.exports = log;

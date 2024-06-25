@@ -172,17 +172,17 @@ async function main() {
               updatedCmd = UpdateExecute(ele["comp>"]["str>Command"]);
               ctr[1]++;
               ele["comp>"]["str>Command"] = updatedCmd;
+            } catch (e) {
+              printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+              try {
+                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]));
+              } catch (e) { }
               // 更新命令块数据版本, 1.18为19
               // 此处使用从1.20.60.2获取的版本数值36
               //ele["comp>"]["i32>Version"] = 36;
               // 此处使用从1.19.50.23获取的版本数值25
               if (ele["comp>"]["i32>Version"] <= 20)
                 ele["comp>"]["i32>Version"] = 25;
-            } catch (e) {
-              printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
-              try {
-                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]));
-              } catch (e) { }
               ctr[2]++;
             }
           }
@@ -220,17 +220,26 @@ async function main() {
               updatedCmd = UpdateExecute(ele["str>Command"]);
               ctr[3]++;
               ele["str>Command"] = updatedCmd;
+            } catch (e) {
+              printf(text.foundErrStru, [kvpair[0].toString('utf8').slice(18), cbPos[0], cbPos[1], cbPos[2], e.message]);
+              try {
+                fs.appendFileSync(
+                  logPath,
+                  fmt.translateF(
+                    text.logFoundErrStru,
+                    [
+                      kvpair[0].toString('utf8').slice(18),
+                      cbPos[0], cbPos[1], cbPos[2], e.message
+                    ]
+                  )
+                );
+              } catch (e) { }
               // 更新命令块数据版本, 1.18为19
               // 此处使用从1.20.60.2获取的版本数值36
               //ele["i32>Version"] = 36;
               // 此处使用从1.19.50.23获取的版本数值25
               if (ele["i32>Version"] <= 20)
                 ele["i32>Version"] = 25;
-            } catch (e) {
-              printf(text.foundErrStru, [kvpair[0].toString('utf8').slice(18), cbPos[0], cbPos[1], cbPos[2], e.message]);
-              try {
-                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErrStru, [cbPos[0], cbPos[1], cbPos[2], e.message]));
-              } catch (e) { }
               ctr[4]++;
             }
           }
