@@ -1,15 +1,32 @@
 const Tag = {
-  ID: 0,
-  NEQ: 1,
-  EQ: 2,
-  NUM: 3,
-  STRING: 4,
-  RELATIVE: 5,
-  SEL: 6,
+  ID: "NoQuoteString",
+  NEQ: "=!",
+  EQ: "=",
+  NUM: "Number",
+  STRING: "String",
+  RELATIVE: "Relative",
+  SEL: "Selector",
   EOF: 0xFFFF
 };
 
 var subCmdList = ["align", "anchored", "as", "at", "facing", "in", "on", "positioned", "rotated", "summon", "if", "unless", "block", "blocks", "entity", "score"];
+
+class StringRange {
+  constructor(start, end) {
+    this.start = start;
+    this.end = end;
+  }
+
+  static at(pos) { return new StringRange(pos, pos) }
+  static between(start, end) { return new StringRange(start, end) }
+  static encompassing(a, b) { return new StringRange(Math.min(a.getStart(), b.getStart()), Math.max(a.getEnd(), b.getEnd())) }
+
+  getStart() { return this.start }
+  getEnd() { return this.end }
+  get(string) { return typeof string == 'string' ? string.substring(this.start, this.end) : string.getString().substring(this.start, this.end) }
+  isEmpty() { return this.start == this.end }
+  getLength() { return this.end - this.start }
+}
 
 class Token {
   constructor(t) { this.tag = t; }
@@ -226,12 +243,12 @@ var Lexer = (function () {
       peek = " ";
       return r
     },
-    getPtr: function () { return ptr }
+    getPtr: function () { return ptr - 1 }
   }
 })();
 
 class Coordinate3D {
-  constructor(x, y, z) { this.x = x; this.y = y; this.z = z; }
+  constructor(x, y, z, raw) { this.x = x; this.y = y; this.z = z; this.raw = raw }
   hasRel() { return this.x.tag == Tag.RELATIVE || this.z.tag == Tag.RELATIVE || this.z.tag == Tag.RELATIVE }
   hasAbs() { return this.x.tag == Tag.NUM || this.z.tag == Tag.NUM || this.z.tag == Tag.NUM }
   isOrigin() {
@@ -239,6 +256,7 @@ class Coordinate3D {
     return !this.x.value && !this.y.value && !this.z.value
   }
   toString() {
+    if (this.raw) return this.raw;
     var ret = '';
     ret += this.x;
     this.y.tag == Tag.NUM ? (ret += ' ' + this.y) : (ret += this.y);
@@ -257,7 +275,7 @@ function updateExecute(str) {
     var matched = false;
     for (var token of arguments)
       if (look.tag == token) matched = true;
-    matched || errorUnexp(arguments.length > 1 ? 0 : arguments[0]);
+    matched || errorUnexp(arguments[0]);
   }
   function errorUnexp(e) {
     if (e) throw new Error(`位置 ${Lexer.getPtr()}: 意料之外的符号 "${look}"; 期望为符号 "${e}"`);
@@ -266,64 +284,55 @@ function updateExecute(str) {
 
   // 一个选择器参数
   function selectorParam() {
-    var ret = '';
     move();
     match(Tag.ID, Tag.STRING);
-    ret += look;
     move();
     match("=", "=!");
-    ret += look;
     move();
     if (look.tag == "{" || look.tag == "[") {
       var terminator = look.tag == "{" ? "}" : "]";
-      ret += look.tag;
-      ret += selectorParam();
-      while (look.tag == ",") ret += "," + selectorParam();
+      selectorParam();
+      while (look.tag == ",") selectorParam();
       match(terminator);
-      ret += terminator;
     } else if (look.tag == Tag.NUM) {
-      ret += look;
       move();
       if (look.tag == "..") {
-        ret += "..";
         move();
         if (look.tag == Tag.NUM)
-          ret += look, move();
-        return ret
-      } else return ret
-    } else if (look.tag == "..") {
-      ret += "..";
+          move();
+        return
+      } else return
+    } else if (look.tag == "..")
       move();
-      if (look.tag == Tag.NUM) ret += look;
-    } else ret += look;
     move();
-    return ret
+    return
   }
 
   function selector() {
-    var ret = '';
+    var start = Lexer.getPtr(), end;
+    move();
+
     // 选择器变量
+    var t = look;
     if (look.tag == Tag.ID || look.tag == Tag.STRING) {
-      var t = look; move(); return t;
+      move(); return t;
     }
     match(Tag.SEL);
-    ret += look.toString();
     move();
-    if (look.tag != "[") return ret
+    if (look.tag != "[") return t.toString();
 
     // 选择器参数
-    ret += "[" + selectorParam();
-    while (look.tag == ",") ret += "," + selectorParam();
+    selectorParam();
+    while (look.tag == ",") selectorParam();
     match("]");
-    move();
-    return ret + "]"
+    end = Lexer.getPtr();
+
+    return StringRange.between(start, end + 1).get(str).trim()
   }
 
   // 三维坐标
   function coordinate() {
-    var ret = [];
-    if (look.tag == Tag.NUM || look.tag == Tag.RELATIVE) ret.push(look);
-    else errorUnexp();
+    var ret = [], start = Lexer.getPtr(), end;
     move();
     if (look.tag == Tag.NUM || look.tag == Tag.RELATIVE) ret.push(look);
     else errorUnexp();
@@ -331,12 +340,16 @@ function updateExecute(str) {
     if (look.tag == Tag.NUM || look.tag == Tag.RELATIVE) ret.push(look);
     else errorUnexp();
     move();
-    return new Coordinate3D(ret[0], ret[1], ret[2]);
+    if (look.tag == Tag.NUM || look.tag == Tag.RELATIVE) ret.push(look);
+    else errorUnexp();
+    end = Lexer.getPtr();
+    move();
+    return new Coordinate3D(ret[0], ret[1], ret[2], StringRange.between(start + 1, end).get(str).trim());
   }
 
   // detect子命令
   function detectSub() {
-    var ret = '', x = coordinate(), block;
+    var ret = '', x = coordinate().raw, block;
     ret += x;
     match(Tag.ID);
     block = look.lexeme;
@@ -345,7 +358,7 @@ function updateExecute(str) {
     // **浮点数也可通过验证**
     match(Tag.NUM);
     if (look.value != -1)
-      throw new Error(`位置 ${Lexer.getPtr()}: 无法转换的detect子命令 "${block} ${look.value}"`);
+      throw new Error(`位置 ${Lexer.getPtr()}: 无法转换的detect子命令参数 "${block} ${look.value}"`);
     move();
     return ret
   }
@@ -363,7 +376,7 @@ function updateExecute(str) {
 
     ret += ' as ' + s + ' at @s';
     x = coordinate();
-    if (!x.isOrigin()) ret += ' positioned ' + x;
+    if (!x.isOrigin()) ret += ' positioned ' + x.raw;
     if (look.tag == "/") {
       move();
       if (look.lexeme == "execute") {
@@ -373,23 +386,20 @@ function updateExecute(str) {
         return ret + " run " + look.lexeme + Lexer.abort();
     }
     match(Tag.ID);
-    if (look.tag == Tag.ID && look.lexeme == "detect") {
-      move();
+    if (look.lexeme == "detect")
       ret += " if block " + detectSub();
-    }
+    if (look.tag == "/") move();
     if (look.lexeme == "execute") {
-      move();
       ret += execute();
       return ret
-    }
-    else return ret + " run " + look.lexeme + Lexer.abort();
+    } else
+      return ret + " run " + look.lexeme + Lexer.abort();
   }
 
   move();
   if (look.tag == "/") move();
   if (look.tag != Tag.ID || look.lexeme != "execute") return look.lexeme + Lexer.abort();
 
-  move();
   ret += execute();
   return ret
 }
