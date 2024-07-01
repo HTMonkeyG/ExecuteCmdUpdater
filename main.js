@@ -181,7 +181,7 @@ async function main() {
       if (meta && meta.type == 0x31 && kvpair[1].length) {
         var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
         for (var ele of nbt) {
-          if (ele["comp>"]["str>Command"] && ele["comp>"]["i32>Version"] <= 20) {
+          if (ele["comp>"]["str>Command"]) {
             ctr[0]++; noCbInChunk = false;
             var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
               , updatedCmd = '';
@@ -193,7 +193,7 @@ async function main() {
               // 此处使用从1.20.60.2获取的版本数值36
               //ele["comp>"]["i32>Version"] = 36;
               // 此处使用从1.19.50.23获取的版本数值25
-              ele["comp>"]["i32>Version"] = 25;
+              ele["comp>"]["i32>Version"] <= 20 && (ele["comp>"]["i32>Version"] = 25);
             } catch (e) {
               printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
               printLog(logPath, text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
@@ -226,7 +226,7 @@ async function main() {
           , originPos = nbt["comp>"]["list>structure_world_origin"];
         for (var ind in palette) {
           var ele = palette[ind]["comp>block_entity_data"];
-          if (ele["str>Command"] && ele["i32>Version"] <= 20) {
+          if (ele["str>Command"]) {
             ctr[0]++; noCbInChunk = false;
             var cbPos = [
               ele["i32>x"] - originPos[1],
@@ -239,7 +239,7 @@ async function main() {
               updatedCmd = UpdateExecute(ele["str>Command"]);
               ctr[3]++;
               ele["str>Command"] = updatedCmd;
-              ele["comp>"]["i32>Version"] = 25;
+              ele["i32>Version"] <= 20 && (ele["i32>Version"] = 25);
             } catch (e) {
               printf(text.foundErrStru, [kvpair[0].toString('utf8').slice(18), cbPos[0], cbPos[1], cbPos[2], e.message]);
               printLog(
