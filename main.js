@@ -226,7 +226,7 @@ async function main() {
           , originPos = nbt["comp>"]["list>structure_world_origin"];
         for (var ind in palette) {
           var ele = palette[ind]["comp>block_entity_data"];
-          if (ele["str>Command"]) {
+          if (ele && ele["str>Command"]) {
             ctr[0]++; noCbInChunk = false;
             var cbPos = [
               ele["i32>x"] - originPos[1],
@@ -257,7 +257,7 @@ async function main() {
         if (!noCbInChunk) {
           var binData = NBT.Writer(nbt, true);
           // 回写
-          db.put(kvpair[0], binData);
+          db.put(kvpair[0], Buffer.from(binData));
         }
       }
     }
