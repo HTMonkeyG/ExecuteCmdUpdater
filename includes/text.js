@@ -13,6 +13,7 @@ var log = {
   logFoundErr: '[ERROR] 在坐标(%0, %1, %2)的命令块发生转换错误: %3.\n',
   logFoundErrStru: '[ERROR] 在结构%0中相对结构原点坐标(%1, %2, %3)的命令块发生转换错误: %4.\n',
   logSavePath: '日志已保存至%0',
+  logUnknownError: '[ERROR] 在键值0x%0处发生未知错误: %1',
   missing: '§4缺失: %0',
   scanning: '§2正在扫描...',
   targetInvalid: '§4目标不存在或不是文件夹.',
@@ -20,6 +21,7 @@ var log = {
   testFail: '§4完整性测试未通过, 请检查后再试.',
   testSucc: '§2目标文件夹完整.',
   totalCb: '§2转换完成, 共发现%0个命令块, 成功转换%1个世界命令块, 失败%2个世界命令块; 成功转换%3个结构命令块, 失败%4个结构命令块.',
+  unknownError: '§c[ERROR] 在键值0x%0处发生未知错误: %1',
   updateStructure: '§3是否更新已保存的结构内命令块[y/N]',
   welcome: '§3欢迎使用ExecuteCmdUpdater v1.2.3'
 };
