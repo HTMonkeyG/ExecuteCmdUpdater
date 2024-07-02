@@ -1,20 +1,27 @@
 const NBT = require("parsenbt-js")
-  , fs = require("fs-extra")
+  , fs = require("fs")
   , pl = require('path')
   , { LevelDB } = require('leveldb-zlib')
   , rl = require("readline")
   , process = require("process")
   , XOR = require("./includes/XOREncryptHelper.js")
-  , UpdateExecute = require("./includes/parser.js");
-
-const text = require("./includes/text.js")
+  , UpdateExecute = require("./includes/parser.js")
+  , text = require("./includes/text.js")
   , fmt = require("./includes/tFormat.js");
 
 var printf = fmt.printF;
 
-var db;
+var db, debug, params, UI;
 
-var UI = rl.promises.createInterface({
+params = Object.fromEntries(process.argv.slice(2).reduce((pre, item) => {
+  if (item.startsWith("--"))
+    return [...pre, item.slice(2).split("=").slice(0, 2)];
+  return pre;
+}, []));
+
+debug = Object.keys(params).indexOf("debug") > -1;
+
+UI = rl.promises.createInterface({
   input: process.stdin,
   output: process.stdout,
   prompt: '\x1b[0m> ',
@@ -84,8 +91,11 @@ function getStructureMeta(buf) {
   var r = name.substring(18).split(":");
   if (r.length > 2) return false;
   return {
-    namespace: r[0],
-    name: r[1]
+    namespace: r[0] || '',
+    name: r[1] || '',
+    toString: function () {
+      return this.namespace + ":" + this.name
+    }
   }
 }
 
@@ -114,6 +124,11 @@ function checkEncFiles(path) {
 async function confirmOperation(text) {
   if ((await UI.question(fmt.translateF(text))).toLocaleLowerCase() != "y") return false;
   return true
+}
+
+/** 打印日志 */
+function printLog(logPath, text, replacements) {
+  try { fs.appendFileSync(logPath, fmt.translateF(text, replacements)) } catch (e) { }
 }
 
 async function main() {
@@ -156,100 +171,99 @@ async function main() {
     /** 日志保存 */
     var logPath = pl.join(path, fmt.fmtDate(new Date()) + '.log');
 
+    printLog(logPath, '');
+
     // 遍历
     for await (let kvpair of db) {
-      var meta = getChunkMeta(kvpair[0])
-        , noCbInChunk = true;
-      // 是区块而且是方块实体区段
-      if (meta && meta.type == 0x31 && kvpair[1].length) {
-        var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
-        for (var ele of nbt) {
-          if (ele["comp>"]["str>Command"]) {
-            ctr[0]++; noCbInChunk = false;
-            var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
-              , updatedCmd = '';
-            try {
-              updatedCmd = UpdateExecute(ele["comp>"]["str>Command"]);
-              ctr[1]++;
-              ele["comp>"]["str>Command"] = updatedCmd;
-            } catch (e) {
-              printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+      try {
+        var meta = getChunkMeta(kvpair[0])
+          , noCbInChunk = true;
+        // 是区块而且是方块实体区段
+        if (meta && meta.type == 0x31 && kvpair[1].length) {
+          var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
+          for (var ele of nbt) {
+            if (ele["comp>"]["str>Command"]) {
+              ctr[0]++; noCbInChunk = false;
+              var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
+                , updatedCmd = '';
               try {
-                fs.appendFileSync(logPath, fmt.translateF(text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]));
-              } catch (e) { }
-              // 更新命令块数据版本, 1.18为19
-              // 此处使用从1.20.60.2获取的版本数值36
-              //ele["comp>"]["i32>Version"] = 36;
-              // 此处使用从1.19.50.23获取的版本数值25
-              if (ele["comp>"]["i32>Version"] <= 20)
-                ele["comp>"]["i32>Version"] = 25;
-              ctr[2]++;
+                updatedCmd = UpdateExecute(ele["comp>"]["str>Command"]);
+                ctr[1]++;
+                ele["comp>"]["str>Command"] = updatedCmd;
+                // 更新命令块数据版本, 1.18为19
+                // 此处使用从1.20.60.2获取的版本数值36
+                //ele["comp>"]["i32>Version"] = 36;
+                // 此处使用从1.19.50.23获取的版本数值25
+                ele["comp>"]["i32>Version"] <= 20 && (ele["comp>"]["i32>Version"] = 25);
+              } catch (e) {
+                printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+                printLog(logPath, text.logFoundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
+                ctr[2]++;
+              }
             }
           }
+
+          if (!noCbInChunk) {
+            var updatedBlocks = nbt.reduce(function (buf, ele) {
+              var binData = NBT.Writer(ele, true);
+              return Buffer.concat([buf, new Uint8Array(binData)])
+            }, Buffer.alloc(0));
+            // 回写
+            db.put(kvpair[0], updatedBlocks);
+          }
         }
+        noCbInChunk = true;
 
-        if (!noCbInChunk) {
-          var updatedBlocks = nbt.reduce(function (buf, ele) {
-            var binData = NBT.Writer(ele, true);
-            return Buffer.concat([buf, new Uint8Array(binData)])
-          }, Buffer.alloc(0));
-          // 回写
-          db.put(kvpair[0], updatedBlocks);
-        }
-      }
-      noCbInChunk = true;
+        // 结构
+        meta = updateStructure ? getStructureMeta(kvpair[0]) : false;
+        if (meta && kvpair[1].length) {
+          debug && (
+            printf(text.debugScanStru, [meta + '']),
+            printLog(logPath, text.logDebugScanStru, [meta + ''])
+          );
 
-      // 结构
-      meta = updateStructure ? getStructureMeta(kvpair[0]) : false;
-      if (meta && kvpair[1].length) {
-        var nbt = NBT.Reader(toArrayBuffer(kvpair[1]), true)
-          , palette = nbt["comp>"]["comp>structure"]["comp>palette"]["comp>default"]["comp>block_position_data"]
-          , originPos = nbt["comp>"]["list>structure_world_origin"];
-        for (var ind in palette) {
-          var ele = palette[ind]["comp>block_entity_data"];
-          if (ele["str>Command"]) {
-            ctr[0]++; noCbInChunk = false;
-            var cbPos = [
-              ele["i32>x"] - originPos[1],
-              ele["i32>y"] - originPos[2],
-              ele["i32>z"] - originPos[3]
-            ]
-              , updatedCmd = '';
+          var nbt = NBT.Reader(toArrayBuffer(kvpair[1]), true)
+            , palette = nbt["comp>"]["comp>structure"]["comp>palette"]["comp>default"]["comp>block_position_data"]
+            , originPos = nbt["comp>"]["list>structure_world_origin"];
+          for (var ind in palette) {
+            var ele = palette[ind]["comp>block_entity_data"];
+            if (ele && ele["str>Command"]) {
+              ctr[0]++; noCbInChunk = false;
+              var cbPos = [
+                ele["i32>x"] - originPos[1],
+                ele["i32>y"] - originPos[2],
+                ele["i32>z"] - originPos[3]
+              ]
+                , updatedCmd = '';
 
-            try {
-              updatedCmd = UpdateExecute(ele["str>Command"]);
-              ctr[3]++;
-              ele["str>Command"] = updatedCmd;
-            } catch (e) {
-              printf(text.foundErrStru, [kvpair[0].toString('utf8').slice(18), cbPos[0], cbPos[1], cbPos[2], e.message]);
               try {
-                fs.appendFileSync(
+                updatedCmd = UpdateExecute(ele["str>Command"]);
+                ctr[3]++;
+                ele["str>Command"] = updatedCmd;
+                ele["i32>Version"] <= 20 && (ele["i32>Version"] = 25);
+              } catch (e) {
+                printf(text.foundErrStru, [kvpair[0].toString('utf8').slice(18), cbPos[0], cbPos[1], cbPos[2], e.message]);
+                printLog(
                   logPath,
-                  fmt.translateF(
-                    text.logFoundErrStru,
-                    [
-                      kvpair[0].toString('utf8').slice(18),
-                      cbPos[0], cbPos[1], cbPos[2], e.message
-                    ]
-                  )
+                  text.logFoundErrStru,
+                  [
+                    kvpair[0].toString('utf8').slice(18),
+                    cbPos[0], cbPos[1], cbPos[2], e.message
+                  ]
                 );
-              } catch (e) { }
-              // 更新命令块数据版本, 1.18为19
-              // 此处使用从1.20.60.2获取的版本数值36
-              //ele["i32>Version"] = 36;
-              // 此处使用从1.19.50.23获取的版本数值25
-              if (ele["i32>Version"] <= 20)
-                ele["i32>Version"] = 25;
-              ctr[4]++;
+              }
             }
           }
-        }
 
-        if (!noCbInChunk) {
-          var binData = NBT.Writer(nbt, true);
-          // 回写
-          db.put(kvpair[0], binData);
+          if (!noCbInChunk) {
+            var binData = NBT.Writer(nbt, true);
+            // 回写
+            db.put(kvpair[0], Buffer.from(binData));
+          }
         }
+      } catch (e) {
+        printLog(logPath, text.logUnknownError, [kvpair[0].toString('hex'), e]);
+        printf(text.unknownError, [kvpair[0].toString('hex'), e])
       }
     }
 

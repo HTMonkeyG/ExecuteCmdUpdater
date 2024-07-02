@@ -1,10 +1,9 @@
 {
   "name": "executecmdupdater",
-  "version": "1.2.2",
+  "version": "1.2.4",
   "description": "一个用于更新mc存档中/execute指令的工具",
   "main": "main.js",
   "dependencies": {
-    "fs-extra": "^11.2.0",
     "leveldb-zlib": "^1.2.0",
     "parsenbt-js": "^1.1.2"
   },
@@ -22,7 +21,6 @@
     ],
     "assets": [
       "node_modules/leveldb-zlib",
-      "node_modules/fs-extra",
       "node_modules/parsenbt-js"
     ],
     "outputPath": "dist"
