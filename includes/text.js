@@ -1,6 +1,7 @@
 var log = {
   confirmOp: '§3若存档中存在新版execute可能产生不正常结果.\n本操作将直接在存档源文件进行, 建议创建好备份后再操作, 是否确认[y/N]',
   ctrlCExit: '§3本次执行结束, 按Ctrl+C退出或按Enter继续操作.',
+  debugMode: '§l§3以debug模式启动.§r',
   debugScanStru: '§2[INFO] 扫描结构%0',
   enterPath: '§3请输入存档目录',
   exit: '\n§f已退出.§r',

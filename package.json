@@ -4,6 +4,7 @@
   "description": "一个用于更新mc存档中/execute指令的工具",
   "main": "main.js",
   "dependencies": {
+    "brigadier-ts": "^1.4.1",
     "leveldb-zlib": "^1.2.0",
     "parsenbt-js": "^1.1.2"
   },
