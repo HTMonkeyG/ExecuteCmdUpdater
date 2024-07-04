@@ -1,6 +1,6 @@
 {
   "name": "executecmdupdater",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "一个用于更新mc存档中/execute指令的工具",
   "main": "main.js",
   "dependencies": {
