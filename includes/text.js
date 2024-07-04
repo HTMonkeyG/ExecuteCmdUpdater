@@ -24,7 +24,7 @@ var log = {
   totalCb: '§2转换完成, 共发现%0个命令块, 成功转换%1个世界命令块, 失败%2个世界命令块; 成功转换%3个结构命令块, 失败%4个结构命令块.',
   unknownError: '§c[ERROR] 在键值0x%0处发生未知错误: %1',
   updateStructure: '§3是否更新已保存的结构内命令块[y/N]',
-  welcome: '§3欢迎使用ExecuteCmdUpdater v1.2.3'
+  welcome: '§3欢迎使用ExecuteCmdUpdater v1.2.5'
 };
 
 module.exports = log;
