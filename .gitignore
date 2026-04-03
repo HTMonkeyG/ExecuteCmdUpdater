@@ -1,3 +1,4 @@
-/node_modules*
-/dist*
-/brigadier*
+node_modules/
+dist/
+brigadier/
+package-lock.json

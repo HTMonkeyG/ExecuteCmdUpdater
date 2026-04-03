@@ -1,7 +1,7 @@
 const NBT = require("parsenbt-js")
   , fs = require("fs")
   , pl = require('path')
-  , { LevelDB } = require('leveldb-zlib')
+  , { LevelDB } = require('emldb')
   , rl = require("readline")
   , process = require("process")
   , XOR = require("./includes/XOREncryptHelper.js")
@@ -104,9 +104,7 @@ function getStructureMeta(buf) {
 function toArrayBuffer(buf) {
   var ab = new ArrayBuffer(buf.length);
   var view = new Uint8Array(ab);
-  for (var i = 0; i < buf.length; ++i) {
-    view[i] = buf[i];
-  }
+  view.set(buf)
   return ab;
 }
 
@@ -137,7 +135,7 @@ async function doUpdateChunks(kvpair, ctr, logPath) {
     , noCbInChunk = true;
   // 是区块而且是方块实体区段
   if (meta && meta.type == 0x31 && kvpair[1].length) {
-    var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), true);
+    var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), { littleEndian: true });
     for (var ele of nbt) {
       if (ele["comp>"]["str>Command"]) {
         ctr[0]++;
@@ -165,7 +163,7 @@ async function doUpdateChunks(kvpair, ctr, logPath) {
 
     if (!noCbInChunk) {
       var updatedBlocks = nbt.reduce(function (buf, ele) {
-        var binData = NBT.Writer(ele, true);
+        var binData = NBT.Writer(ele, { littleEndian: true });
         return Buffer.concat([buf, new Uint8Array(binData)])
       }, Buffer.alloc(0));
       // 回写
@@ -183,7 +181,7 @@ async function doUpdateStructure(kvpair, ctr, logPath) {
       printLog(logPath, text.logDebugScanStru, [meta + ''])
     );
 
-    var nbt = NBT.Reader(toArrayBuffer(kvpair[1]), true)
+    var nbt = NBT.Reader(toArrayBuffer(kvpair[1]), { littleEndian: true, asTypedArray: true })
       , palette = nbt["comp>"]["comp>structure"]["comp>palette"]["comp>default"]["comp>block_position_data"]
       , originPos = nbt["comp>"]["list>structure_world_origin"];
     for (var ind in palette) {
@@ -221,7 +219,7 @@ async function doUpdateStructure(kvpair, ctr, logPath) {
     }
 
     if (!noCbInChunk) {
-      var binData = NBT.Writer(nbt, true);
+      var binData = NBT.Writer(nbt, { littleEndian: true });
       // 回写
       await db.put(kvpair[0], Buffer.from(binData));
     }
@@ -229,6 +227,8 @@ async function doUpdateStructure(kvpair, ctr, logPath) {
 }
 
 async function main() {
+  await LevelDB.initialize();
+
   while (1) {
     printf(text.enterPath);
     var path = await UI.question(UI.getPrompt()), updateStructure = false;
@@ -261,7 +261,7 @@ async function main() {
 
     printf(text.scanning);
     db = new LevelDB(pl.join(path, 'db'), { createIfMissing: false });
-    await db.open();
+    db.open();
 
     /** 命令块计数, 成功计数, 错误计数, 结构成功计数, 结构错误计数 */
     var ctr = [0, 0, 0, 0, 0];
@@ -271,8 +271,9 @@ async function main() {
     printLog(logPath, '');
 
     // 遍历
-    for await (let kvpair of db) {
+    for (let kvpair of db) {
       try {
+        kvpair = [Buffer.from(kvpair[0]), Buffer.from(kvpair[1])];
         doUpdateChunks(kvpair, ctr, logPath);
         updateStructure && doUpdateStructure(kvpair, ctr, logPath);
       } catch (e) {
@@ -283,7 +284,7 @@ async function main() {
 
     printf(text.totalCb, ctr);
     printf(text.logSavePath, [logPath]);
-    await db.close();
+    db.close();
     await UI.question(fmt.translateF(text.ctrlCExit));
   }
 }

@@ -5,8 +5,8 @@
   "main": "main.js",
   "dependencies": {
     "brigadier-ts": "^1.4.1",
-    "leveldb-zlib": "^1.2.0",
-    "parsenbt-js": "^1.1.2"
+    "emldb": "^1.0.1",
+    "parsenbt-js": "^3.1.0"
   },
   "author": "HTMonkeyG",
   "license": "MIT",
