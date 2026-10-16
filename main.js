@@ -100,14 +100,6 @@ function getStructureMeta(buf) {
   }
 }
 
-/** 将Buffer转换为ArrayBuffer */
-function toArrayBuffer(buf) {
-  var ab = new ArrayBuffer(buf.length);
-  var view = new Uint8Array(ab);
-  view.set(buf)
-  return ab;
-}
-
 /** 查找加密文件 */
 function checkEncFiles(path) {
   var dbPath = pl.join(path, 'db');
@@ -135,23 +127,23 @@ async function doUpdateChunks(kvpair, ctr, logPath) {
     , noCbInChunk = true;
   // 是区块而且是方块实体区段
   if (meta && meta.type == 0x31 && kvpair[1].length) {
-    var nbt = NBT.ReadSerial(toArrayBuffer(kvpair[1]), { littleEndian: true });
+    var nbt = NBT.ReadSerial(kvpair[1], { littleEndian: true });
     for (var ele of nbt) {
-      if (ele["comp>"]["str>Command"]) {
+      if (ele["obj>"]["str>Command"]) {
         ctr[0]++;
-        var cbPos = [ele["comp>"]["i32>x"], ele["comp>"]["i32>y"], ele["comp>"]["i32>z"]]
+        var cbPos = [ele["obj>"]["i32>x"], ele["obj>"]["i32>y"], ele["obj>"]["i32>z"]]
           , updatedCmd = '';
         try {
-          updatedCmd = UpdateExecute(ele["comp>"]["str>Command"]);
+          updatedCmd = UpdateExecute(ele["obj>"]["str>Command"]);
           ctr[1]++;
-          if (updatedCmd !== ele["comp>"]["str>Command"]) {
+          if (updatedCmd !== ele["obj>"]["str>Command"]) {
             noCbInChunk = false;
-            ele["comp>"]["str>Command"] = updatedCmd;
+            ele["obj>"]["str>Command"] = updatedCmd;
             // 更新命令块数据版本, 1.18为19
             // 此处使用从1.20.60.2获取的版本数值36
-            //ele["comp>"]["i32>Version"] = 36;
+            //ele["obj>"]["i32>Version"] = 36;
             // 此处使用从1.19.50.23获取的版本数值25
-            ele["comp>"]["i32>Version"] <= 20 && (ele["comp>"]["i32>Version"] = 25);
+            ele["obj>"]["i32>Version"] <= 20 && (ele["obj>"]["i32>Version"] = 25);
           }
         } catch (e) {
           printf(text.foundErr, [cbPos[0], cbPos[1], cbPos[2], e.message]);
@@ -181,11 +173,11 @@ async function doUpdateStructure(kvpair, ctr, logPath) {
       printLog(logPath, text.logDebugScanStru, [meta + ''])
     );
 
-    var nbt = NBT.Reader(toArrayBuffer(kvpair[1]), { littleEndian: true, asTypedArray: true })
-      , palette = nbt["comp>"]["comp>structure"]["comp>palette"]["comp>default"]["comp>block_position_data"]
-      , originPos = nbt["comp>"]["list>structure_world_origin"];
+    var nbt = NBT.Reader(kvpair[1], { littleEndian: true, asTypedArray: true })
+      , palette = nbt["obj>"]["obj>structure"]["obj>palette"]["obj>default"]["obj>block_position_data"]
+      , originPos = nbt["obj>"]["lst>structure_world_origin"];
     for (var ind in palette) {
-      var ele = palette[ind]["comp>block_entity_data"];
+      var ele = palette[ind]["obj>block_entity_data"];
       if (ele && ele["str>Command"]) {
         ctr[0]++;
         var cbPos = [
@@ -248,9 +240,10 @@ async function main() {
     }
 
     // 加密文件检测
+    var hasEncrypted = false;
     if (!checkEncFiles(path)) {
       printf(text.foundEncFile);
-      continue;
+      hasEncrypted = true;
     }
 
     // 更新结构
@@ -260,7 +253,16 @@ async function main() {
     if (!await confirmOperation(text.confirmOp)) UI.close();
 
     printf(text.scanning);
-    db = new LevelDB(pl.join(path, 'db'), { createIfMissing: false });
+    
+    var mcneKey = void 0;
+    if (hasEncrypted)
+      mcneKey = LevelDB.infer(pl.join(path, 'db'));
+
+    db = new LevelDB(pl.join(path, 'db'), {
+      createIfMissing: false,
+      blockSize: 163840,
+      mcneEncryptionKey: mcneKey
+    });
     db.open();
 
     /** 命令块计数, 成功计数, 错误计数, 结构成功计数, 结构错误计数 */
@@ -269,6 +271,9 @@ async function main() {
     var logPath = pl.join(path, fmt.fmtDate(new Date()) + '.log');
 
     printLog(logPath, '');
+
+    console.log(db.get(Buffer.from("710200006F02000031", "hex")));
+    console.log(db.get(Buffer.from("a", "hex")));
 
     // 遍历
     for (let kvpair of db) {

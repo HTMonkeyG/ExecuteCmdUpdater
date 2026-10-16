@@ -6,7 +6,7 @@ var log = {
   enterPath: '§3请输入存档目录',
   exit: '\n§f已退出.§r',
   foundDetect: '§e[WARNING] 在坐标(%0, %1, %2)的命令块发现detect子命令: %3, 未转换.',
-  foundEncFile: '§4找到已加密文件, 无法执行读取操作.\n请前往https://github.com/HTMonkeyG/XOR-MC-Archive-Decrypt/releases 获取解密器后操作§r',
+  foundEncFile: '§4找到已加密文件, 尝试使用leveldb-mcne打开.§r',
   foundNewExe: '§e[WARNING] 在坐标(%0, %1, %2)的命令块发现疑似新版execute子命令: %3, 未转换.',
   foundErr: '§c[ERROR] 在坐标(%0, %1, %2)的命令块发生转换错误: %3.',
   foundErrStru: '§c[ERROR] 在结构%0中相对结构原点坐标(%1, %2, %3)的命令块发生转换错误: %4.',
