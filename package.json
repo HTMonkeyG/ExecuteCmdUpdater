@@ -5,7 +5,7 @@
   "main": "main.js",
   "dependencies": {
     "brigadier-ts": "^1.4.1",
-    "emldb": "^2.2.0",
+    "emldb": "^2.3.1",
     "parsenbt-js": "^4.0.0"
   },
   "author": "HTMonkeyG",
